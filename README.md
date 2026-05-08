@@ -2,6 +2,13 @@
 
 Automatically detects and clips highlight moments from Twitch streams, then converts them to vertical TikTok/Reels/Shorts format.
 
+## What Problem Does This Solve?
+
+Streamers often miss viral moments during live broadcasts.
+ClipForge automatically detects hype moments from chat activity,
+engagement spikes, and stream events, then generates short-form
+vertical clips optimized for TikTok, Reels, and YouTube Shorts.
+
 ## Architecture
 
 ```
@@ -67,14 +74,17 @@ Every 30 seconds, all events are aggregated and scored:
 3. Set OAuth Redirect URL to: `http://localhost:8000/api/auth/callback`
 4. Copy Client ID and Client Secret
 
-### 2. ngrok (for EventSub webhooks)
+```md
+## 2. Public Tunnel (Cloudflare Tunnel)
 
-Twitch EventSub requires a public HTTPS URL for webhooks.
+Twitch EventSub requires a public HTTPS URL for OAuth callbacks and webhook delivery.
 
 ```bash
-# Install ngrok: https://ngrok.com
-ngrok http 8000
-# Copy the https URL (e.g. https://abc123.ngrok.io)
+# Install cloudflared
+brew install cloudflare/cloudflare/cloudflared
+
+# Start a public tunnel to the backend
+cloudflared tunnel --url http://localhost:8000
 ```
 
 ### 3. Configure Environment
@@ -83,7 +93,7 @@ ngrok http 8000
 cp backend/.env.example backend/.env
 # Edit backend/.env with your values:
 # TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_WEBHOOK_SECRET
-# BACKEND_URL=https://abc123.ngrok.io
+# BACKEND_URL=https://example.trycloudflare.com
 # OPENAI_API_KEY=sk-... (optional)
 ```
 
@@ -206,8 +216,26 @@ twitch-clipper/
 └── README.md
 ```
 
-## Phase 2 Additions (with Claude Code)
+## Current Status
 
+### Implemented
+- Twitch OAuth authentication
+- Real-time event scoring pipeline
+- Redis pub/sub architecture
+- Clip review dashboard
+- WebSocket live updates
+- FFmpeg processing pipeline
+- Dockerized local deployment
+- PostgreSQL + Redis integration
+
+### In Progress
+- Full Twitch EventSub automation
+- Production-grade chat ingestion
+- Real-time transcription improvements
+- Automated social media uploads
+- Advanced AI highlight scoring
+
+## Planned Extensions
 When you're ready to extend, here's what to build next:
 
 ### Audio Analysis
