@@ -92,12 +92,23 @@ async def approve_clip(
     clip.status = ClipStatus.APPROVED
     clip.approved_at = datetime.utcnow()
     await db.commit()
+    await db.refresh(clip)
 
-    # Trigger video processing task
-    from app.workers.video_worker import enqueue_video_processing
-    await enqueue_video_processing(clip.id)
+    has_source = bool(clip.raw_clip_path or clip.twitch_clip_url)
+    if has_source:
+        from app.workers.video_worker import enqueue_video_processing
+        await enqueue_video_processing(clip.id)
+        logger.info(
+            f"[Clips] Approved clip {clip_id} for {streamer.login} — "
+            f"enqueued processing (source={'raw_path' if clip.raw_clip_path else 'twitch_url'})"
+        )
+    else:
+        logger.info(
+            f"[Clips] Approved clip {clip_id} for {streamer.login} — "
+            "no video source, skipping processing queue"
+        )
 
-    return {"ok": True, "status": ClipStatus.APPROVED.value}
+    return {"ok": True, "clip": _serialize_clip(clip)}
 
 
 @router.post("/{clip_id}/reject")
@@ -119,7 +130,13 @@ async def reject_clip(
     clip.rejected_at = datetime.utcnow()
     clip.rejection_reason = reason
     await db.commit()
-    return {"ok": True}
+    await db.refresh(clip)
+
+    logger.info(
+        f"[Clips] Rejected clip {clip_id} for {streamer.login}"
+        + (f" — reason: {reason}" if reason else "")
+    )
+    return {"ok": True, "clip": _serialize_clip(clip)}
 
 
 @router.get("/{clip_id}/download")

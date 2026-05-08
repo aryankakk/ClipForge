@@ -58,10 +58,10 @@ export const clips = {
   },
   get: (id: string) => request<Clip>(`/api/clips/${id}`),
   approve: (id: string) => request(`/api/clips/${id}/approve`, { method: 'POST' }),
-  reject: (id: string, reason?: string) =>
-    request(`/api/clips/${id}/reject${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`, {
-      method: 'POST',
-    }),
+  reject: (id: string, reason?: string) => {
+    const qs = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+    return request(`/api/clips/${id}/reject${qs}`, { method: 'POST' });
+  },
   updateTitle: (id: string, title: string) =>
     request(`/api/clips/${id}/title?title=${encodeURIComponent(title)}`, { method: 'PATCH' }),
   downloadUrl: (id: string, processed = true) => {

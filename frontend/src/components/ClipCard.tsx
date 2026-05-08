@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { clips as clipsApi } from '@/lib/api';
 import type { Clip } from '@/lib/types';
 
@@ -23,14 +23,23 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(clip.ai_title || '');
   const [expanded, setExpanded] = useState(false);
+  // Optimistic status: updates immediately on action, then syncs when parent re-fetches
+  const [localStatus, setLocalStatus] = useState(clip.status);
 
-  const statusCfg = STATUS_CONFIG[clip.status] || STATUS_CONFIG.pending;
+  useEffect(() => {
+    setLocalStatus(clip.status);
+  }, [clip.status]);
+
+  const statusCfg = STATUS_CONFIG[localStatus] || STATUS_CONFIG.pending;
 
   const handleApprove = async () => {
     setLoading('approve');
+    setLocalStatus('processing');
     try {
       await clipsApi.approve(clip.id);
       onUpdate();
+    } catch {
+      setLocalStatus(clip.status);
     } finally {
       setLoading(null);
     }
@@ -40,7 +49,10 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
     setLoading('reject');
     try {
       await clipsApi.reject(clip.id);
+      setLocalStatus('rejected');
       onUpdate();
+    } catch {
+      setLocalStatus(clip.status);
     } finally {
       setLoading(null);
     }
@@ -76,7 +88,15 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
         style={{ background: 'var(--forge-bg)' }}
         onClick={() => setExpanded(!expanded)}
       >
-        {clip.twitch_thumbnail_url ? (
+        {clip.has_processed_video ? (
+          <video
+            src={clipsApi.downloadUrl(clip.id)}
+            className="w-full h-full object-cover"
+            controls
+            preload="metadata"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : clip.twitch_thumbnail_url ? (
           <img
             src={clip.twitch_thumbnail_url}
             alt="Clip thumbnail"
@@ -234,16 +254,14 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
 
         {/* Action buttons */}
         <div className="flex gap-2 pt-1">
-          {clip.status === 'ready' || clip.status === 'pending' ? (
+          {/* READY / PENDING: review actions */}
+          {(localStatus === 'ready' || localStatus === 'pending') && (
             <>
               <button
                 onClick={handleApprove}
                 disabled={!!loading}
                 className="flex-1 mono text-xs py-2 font-bold transition-opacity disabled:opacity-50"
-                style={{
-                  background: 'var(--forge-green)',
-                  color: 'var(--forge-bg)',
-                }}
+                style={{ background: 'var(--forge-green)', color: 'var(--forge-bg)' }}
               >
                 {loading === 'approve' ? '...' : '✓ APPROVE'}
               </button>
@@ -251,16 +269,32 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
                 onClick={handleReject}
                 disabled={!!loading}
                 className="flex-1 mono text-xs py-2 font-bold border transition-opacity disabled:opacity-50"
-                style={{
-                  borderColor: 'var(--forge-red)',
-                  color: 'var(--forge-red)',
-                  background: 'transparent',
-                }}
+                style={{ borderColor: 'var(--forge-red)', color: 'var(--forge-red)', background: 'transparent' }}
               >
                 {loading === 'reject' ? '...' : '✕ REJECT'}
               </button>
             </>
-          ) : null}
+          )}
+
+          {/* PROCESSING: spinner label */}
+          {localStatus === 'processing' && (
+            <div
+              className="flex-1 mono text-xs py-2 text-center"
+              style={{ color: 'var(--forge-amber)', border: '1px solid var(--forge-amber)' }}
+            >
+              ⟳ PROCESSING...
+            </div>
+          )}
+
+          {/* REJECTED: info label, no download */}
+          {localStatus === 'rejected' && (
+            <div
+              className="flex-1 mono text-xs py-2 text-center"
+              style={{ color: 'var(--forge-red)', border: '1px solid var(--forge-red)' }}
+            >
+              ✕ REJECTED
+            </div>
+          )}
 
           {/* Twitch link */}
           {clip.twitch_clip_url && (
@@ -274,14 +308,15 @@ export default function ClipCard({ clip, onUpdate }: ClipCardProps) {
             </a>
           )}
 
-          {/* Download */}
-          {clip.has_processed_video && (
+          {/* APPROVED / EXPORTED: download — only when video is ready */}
+          {(localStatus === 'approved' || localStatus === 'exported') && clip.has_processed_video && (
             <a
               href={clipsApi.downloadUrl(clip.id)}
               download
-              className="mono text-xs py-2 px-3 border border-[var(--forge-border)] text-[var(--forge-muted)] hover:text-[var(--forge-text)] transition-colors"
+              className="flex-1 mono text-xs py-2 text-center border transition-colors"
+              style={{ borderColor: 'var(--forge-green)', color: 'var(--forge-green)' }}
             >
-              ↓
+              ↓ DOWNLOAD
             </a>
           )}
         </div>

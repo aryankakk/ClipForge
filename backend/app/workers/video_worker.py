@@ -57,10 +57,9 @@ async def process_clip(clip_id: str):
         )
         clip = result.scalar_one_or_none()
         if not clip:
-            logger.error(f"Clip not found: {clip_id}")
+            logger.error(f"[VideoWorker] Clip not found: {clip_id}")
             return
 
-        # Fetch streamer info for AI context
         result = await db.execute(
             select(Streamer).where(Streamer.id == clip.streamer_id)
         )
@@ -68,22 +67,28 @@ async def process_clip(clip_id: str):
 
         clip.status = ClipStatus.PROCESSING
         await db.commit()
+        logger.info(f"[VideoWorker] Processing clip {clip_id} for {streamer.login if streamer else '?'}")
 
-        # 1. Download raw clip
+        # 1. Resolve raw clip path — prefer existing file, then download from Twitch
         raw_path = None
-        if clip.twitch_thumbnail_url:
-            raw_path = await processor.download_clip(
-                clip.twitch_thumbnail_url, clip.id
-            )
+        if clip.raw_clip_path and Path(clip.raw_clip_path).exists():
+            raw_path = Path(clip.raw_clip_path)
+            logger.info(f"[VideoWorker] Using existing raw clip: {raw_path}")
+        elif clip.twitch_thumbnail_url:
+            raw_path = await processor.download_clip(clip.twitch_thumbnail_url, clip.id)
+            if raw_path:
+                clip.raw_clip_path = str(raw_path)
+                await db.commit()
 
         if not raw_path:
-            logger.error(f"Failed to download clip {clip_id}")
-            clip.status = ClipStatus.READY  # Keep ready, just no processed video
+            logger.error(
+                f"[VideoWorker] No video source for clip {clip_id} "
+                f"(raw_clip_path={clip.raw_clip_path!r}, "
+                f"twitch_thumbnail_url={clip.twitch_thumbnail_url!r}) — reverting to READY"
+            )
+            clip.status = ClipStatus.READY
             await db.commit()
             return
-
-        clip.raw_clip_path = str(raw_path)
-        await db.commit()
 
         # 2. Transcribe with Whisper
         transcript = await transcribe_clip(raw_path)
@@ -92,10 +97,7 @@ async def process_clip(clip_id: str):
             await db.commit()
 
         # 3. Generate AI metadata
-        game_name = None
-        if clip.stream:
-            game_name = clip.stream.game_name
-
+        game_name = clip.stream.game_name if clip.stream else None
         metadata = await generate_clip_metadata(
             transcript=clip.transcript,
             chat_context=clip.chat_context or [],
@@ -103,25 +105,33 @@ async def process_clip(clip_id: str):
             game_name=game_name,
             streamer_name=streamer.display_name if streamer else None,
         )
-
         clip.ai_title = metadata.get("title")
         clip.ai_description = metadata.get("description")
         clip.ai_hashtags = metadata.get("hashtags", [])
         await db.commit()
 
-        # 4. Process video to vertical format
-        processed_path = await processor.process_for_short(
-            input_path=raw_path,
-            clip_id=clip.id,
-            transcript=clip.transcript,
-            title=clip.ai_title,
-        )
+        # 4. Process video to vertical short format
+        try:
+            processed_path = await processor.process_for_short(
+                input_path=raw_path,
+                clip_id=clip.id,
+                transcript=clip.transcript,
+                title=clip.ai_title,
+            )
+        except Exception as exc:
+            logger.error(f"[VideoWorker] process_for_short raised for {clip_id}: {exc}", exc_info=True)
+            processed_path = None
 
         if processed_path:
             clip.processed_clip_path = str(processed_path)
+            clip.status = ClipStatus.EXPORTED
             processor.cleanup_raw(clip.id)
+            logger.info(f"[VideoWorker] ✅ Exported clip {clip_id} → {processed_path}")
+        else:
+            clip.status = ClipStatus.READY
+            logger.error(
+                f"[VideoWorker] ❌ Video processing failed for {clip_id} — "
+                "reverting to READY so it can be re-approved or rejected"
+            )
 
-        clip.status = ClipStatus.APPROVED
         await db.commit()
-
-        logger.info(f"✅ Clip processed successfully: {clip_id}")
