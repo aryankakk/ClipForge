@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --forge-bg: #0a0a0c;
+  --forge-surface: #111115;
+  --forge-border: #1e1e26;
+  --forge-border-bright: #2e2e3e;
+  --forge-text: #e8e8f0;
+  --forge-muted: #6b6b80;
+  --forge-accent: #7c5cfc;
+  --forge-accent-dim: #3d2d8a;
+  --forge-green: #00e5a0;
+  --forge-green-dim: #003d2b;
+  --forge-red: #ff4566;
+  --forge-red-dim: #3d0015;
+  --forge-amber: #ffb830;
+  --forge-amber-dim: #3d2a00;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--forge-bg);
+  color: var(--forge-text);
+  font-family: 'Syne', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Scanline texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.012) 2px,
+    rgba(255, 255, 255, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Mono font for data/numbers */
+.mono {
+  font-family: 'Space Mono', monospace;
+}
+
+/* Score bar animation */
+@keyframes score-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes live-ping {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes slide-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--forge-green);
+  animation: live-ping 1.5s ease-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--forge-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--forge-border-bright);
+  border-radius: 2px;
+}
+
+/* Clip card hover */
+.clip-card {
+  transition: border-color 0.2s, transform 0.2s;
+}
+.clip-card:hover {
+  border-color: var(--forge-accent);
+  transform: translateY(-2px);
+}
+
+/* Score gradient fill */
+.score-fill {
+  background: linear-gradient(90deg, var(--forge-accent), var(--forge-green));
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--forge-surface) 25%,
+    var(--forge-border) 50%,
+    var(--forge-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}

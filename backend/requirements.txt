@@ -1,0 +1,13 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+redis==5.2.1
+pydantic-settings==2.6.1
+httpx==0.28.0
+websockets==14.1
+python-multipart==0.0.17
+openai==1.57.0
+aiofiles==24.1.0
+psycopg2-binary==2.9.10
